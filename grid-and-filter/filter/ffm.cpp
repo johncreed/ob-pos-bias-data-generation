@@ -325,7 +325,7 @@ void ImpProblem::UTx(const Node* x0, const Node* x1, const Vec &A, ImpDouble *c)
 void ImpProblem::UTX(const vector<Node*> &X, const ImpLong m1, const Vec &A, Vec &C) {
     fill(C.begin(), C.end(), 0);
     ImpDouble* c = C.data();
-#pragma omp parallel for schedule(guided)
+//#pragma omp parallel for schedule(guided)
     for (ImpLong i = 0; i < m1; i++)
         UTx(X[i], X[i+1], A, c+i*k);
 }
@@ -465,10 +465,6 @@ void ImpProblem::update_cross(const bool &sub_type, const Vec &S,
 }
 
 void ImpProblem::init() {
-    lambda = param->lambda;
-    w = param->omega;
-    r = param->r;
-
     m = U->m;
     n = V->m;
 
@@ -477,38 +473,6 @@ void ImpProblem::init() {
     f = fu+fv;
 
     k = param->k;
-
-    a.resize(m, 0);
-    b.resize(n, 0);
-
-    sa.resize(m, 0);
-    sb.resize(n, 0);
-
-    const ImpInt nr_blocks = f*(f+1)/2;
-
-    W.resize(nr_blocks);
-    H.resize(nr_blocks);
-
-    P.resize(nr_blocks);
-    Q.resize(nr_blocks);
-
-    for (ImpInt f1 = 0; f1 < f; f1++) {
-        const shared_ptr<ImpData> d1 = ((f1<fu)? U: V);
-        const ImpInt fi = ((f1>=fu)? f1-fu: f1);
-        for (ImpInt f2 = f1; f2 < f; f2++) {
-            const shared_ptr<ImpData> d2 = ((f2<fu)? U: V);
-            const ImpInt fj = ((f2>=fu)? f2-fu: f2);
-            const ImpInt f12 = index_vec(f1, f2, f);
-            if(!param->self_side && (f1>=fu || f2<fu))
-                continue;
-            init_pair(f12, fi, fj, d1, d2);
-        }
-    }
-
-    cache_sasb();
-    if (param->self_side)
-        calc_side();
-    init_y_tilde();
 }
 
 void ImpProblem::cache_sasb() {
@@ -1272,14 +1236,14 @@ void ImpProblem::load_binary_model(string & model_path){
     ifile.read( reinterpret_cast<char*>(&fu), sizeof(ImpInt) );
     ifile.read( reinterpret_cast<char*>(&fv), sizeof(ImpInt) );
     ifile.read( reinterpret_cast<char*>(&k), sizeof(ImpInt) );
-    
+
     W.resize(f*(f+1)/2);
     H.resize(f*(f+1)/2);
     U->Ds.resize(fu);
     V->Ds.resize(fv);
     ifile.read( reinterpret_cast<char*>(U->Ds.data()), sizeof(ImpLong)*fu);
     ifile.read( reinterpret_cast<char*>(V->Ds.data()), sizeof(ImpLong)*fv);
-    
+
     for(ImpInt fi = 0; fi < f ; fi++){
         for(ImpInt fj = fi; fj < f; fj++){
             ImpInt fij = index_vec(fi, fj, f);
@@ -1350,4 +1314,156 @@ ImpDouble ImpProblem::func() {
     return 0.5*res;
 }
 
+void ImpProblem::random_filter(const Vec& z, vector<pair<ImpLong, ImpDouble>>& idx_list){
+   Vec probability_vec(z.size(), 1.0);
+   random_device rd;
+   mt19937 gen(rd());
+   
+   const ImpInt max_t = 20;
+   ImpInt t = 0;
+   while( t < max_t ){
+       discrete_distribution<> dis(probability_vec.begin(), probability_vec.end());
+       ImpLong idx = dis(gen);
+       probability_vec[idx] = 0;
+       idx_list.push_back(make_pair(idx, 1.0 ));
+       t++;
+   }
+}
 
+void ImpProblem::propensious_filter(const Vec& z, vector<pair<ImpLong, ImpDouble>>& idx_list){
+   ImpDouble z_sum = 0;
+   for(auto i : z)
+       z_sum += i;
+   Vec probability_vec(z);
+   random_device rd;
+   mt19937 gen(rd());
+   
+   const ImpInt max_t = 20;
+   ImpInt t = 0;
+   while( t < max_t ){
+       discrete_distribution<> dis(probability_vec.begin(), probability_vec.end());
+       ImpLong idx = dis(gen);
+       probability_vec[idx] = 0;
+       idx_list.push_back( make_pair( idx, z[idx]/z_sum ));
+       z_sum -= z[idx];
+       t++;
+   }
+}
+
+class Comp{
+    // Descending order
+    const ImpDouble *dec_val;
+    public:
+    Comp(const ImpDouble *ptr): dec_val(ptr){}
+    bool operator()(int i, int j) const{
+        return dec_val[i] > dec_val[j];
+    }
+};
+
+void ImpProblem::determined_filter(const Vec& z, vector<pair<ImpLong, ImpDouble>>& idx_list){
+    vector<ImpLong> indices(z.size(), 0);
+    for(ImpLong i = 0; i < indices.size(); i++){
+        indices[i] = i;
+    }
+    sort(indices.begin(), indices.end(), Comp(z.data()));
+    
+    const ImpInt max_t = 20;
+    ImpInt t = 0;
+    while( t < max_t ){
+        idx_list.push_back( make_pair( indices[t], 1.0 ));
+        t++;
+    }
+}
+
+void ImpProblem::filter_output(const ImpLong i, FILE* f_out, vector<pair<ImpLong, ImpDouble>>& idx_list){
+    for(auto p: idx_list){
+        ImpLong idx = p.first;
+        ImpInt label = 0; 
+        ImpDouble prob = p.second;
+        for(Node* y = Uva->Y[i]; y < Uva->Y[i+1]; y++){
+            if( idx == y->idx )
+                label = 1;
+        }
+        fprintf(f_out, "%ld:%d:%lf,", idx, label, prob);
+    }
+    fprintf(f_out, "\n");
+}
+
+void ImpProblem::filter() {
+    const ImpInt nr_blocks = f*(f+1)/2;
+
+    Pva.resize(nr_blocks);
+    Qva.resize(nr_blocks);
+
+    for (ImpInt f1 = 0; f1 < f; f1++) {
+        const shared_ptr<ImpData> d1 = ((f1<fu)? Uva: V);
+        for (ImpInt f2 = f1; f2 < f; f2++) {
+            const shared_ptr<ImpData> d2 = ((f2<fu)? Uva: V);
+            const ImpInt f12 = index_vec(f1, f2, f);
+            if(!param->self_side && (f1>=fu || f2<fu))
+                continue;
+            Pva[f12].resize(d1->m*k);
+            Qva[f12].resize(d2->m*k);
+        }
+    }
+
+    for (ImpInt f1 = 0; f1 < f; f1++) {
+        const shared_ptr<ImpData> d1 = ((f1<fu)? Uva: V);
+        const ImpInt fi = ((f1>=fu)? f1-fu: f1);
+
+        for (ImpInt f2 = f1; f2 < f; f2++) {
+            const shared_ptr<ImpData> d2 = ((f2<fu)? Uva: V);
+            const ImpInt fj = ((f2>=fu)? f2-fu: f2);
+
+            const ImpInt f12 = index_vec(f1, f2, f);
+            if(!param->self_side && (f1>=fu || f2<fu))
+                continue;
+            UTX(d1->Xs[fi], d1->m, W[f12], Pva[f12]);
+            UTX(d2->Xs[fj], d2->m, H[f12], Qva[f12]);
+        }
+    }
+
+    Vec at(Uva->m, 0), bt(V->m, 0);
+
+    if (param->self_side) {
+        for (ImpInt f1 = 0; f1 < fu; f1++) {
+            for (ImpInt f2 = f1; f2 < fu; f2++) {
+                const ImpInt f12 = index_vec(f1, f2, f);
+                add_side(Pva[f12], Qva[f12], Uva->m, at);
+            }
+        }
+        for (ImpInt f1 = fu; f1 < f; f1++) {
+            for (ImpInt f2 = f1; f2 < f; f2++) {
+                const ImpInt f12 = index_vec(f1, f2, f);
+                add_side(Pva[f12], Qva[f12], V->m, bt);
+            }
+        }
+    }
+   
+    FILE * f_rd = fopen("random_filter", "w" );
+    FILE * f_pr = fopen("propensious_filter", "w" );
+    FILE * f_de = fopen("determined_filter", "w" );
+    for (ImpLong i = 0; i < Uva->m; i++) {
+        Vec z;
+        if(Uva->nnx[i] == 0) {
+            z.assign(U->popular.begin(), U->popular.end());
+        }
+        else {
+            z.assign(bt.begin(), bt.end());
+            pred_z(i, z.data());
+        }
+        vector<pair<ImpLong, ImpDouble>> idx_list_rd;
+        vector<pair<ImpLong, ImpDouble>> idx_list_pr;
+        vector<pair<ImpLong, ImpDouble>> idx_list_de;
+        random_filter(z, idx_list_rd);
+        propensious_filter(z, idx_list_pr);
+        determined_filter(z, idx_list_de);
+        filter_output(i, f_rd, idx_list_rd);
+        filter_output(i, f_pr, idx_list_pr);
+        filter_output(i, f_de, idx_list_de);
+    }
+
+    fclose(f_rd);
+    fclose(f_pr);
+    fclose(f_de);
+}

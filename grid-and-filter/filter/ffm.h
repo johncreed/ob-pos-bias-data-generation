@@ -13,6 +13,7 @@
 #include <utility>
 #include <numeric>
 #include <cassert>
+#include <stdio.h>
 
 
 #include <immintrin.h>
@@ -94,6 +95,7 @@ public:
 
     void save_binary_model(string& model_path);
     void load_binary_model(string& model_path);
+    void filter();
 private:
     ImpDouble loss, lambda, w, r;
 
@@ -108,6 +110,11 @@ private:
     Vec a, b, va_loss_prec, va_loss_ndcg, sa, sb;
 
     vector<ImpInt> top_k;
+    
+    void random_filter(const Vec& z, vector<pair<ImpLong, ImpDouble>>& idx_list);
+    void propensious_filter(const Vec& z, vector<pair<ImpLong, ImpDouble>>& idx_list);
+    void determined_filter(const Vec& z, vector<pair<ImpLong, ImpDouble>>& idx_list);
+    void filter_output(const ImpLong i, FILE* f_out, vector<pair<ImpLong, ImpDouble>>& idx_list);
 
     void init_pair(const ImpInt &f12, const ImpInt &fi, const ImpInt &fj,
             const shared_ptr<ImpData> &d1, const shared_ptr<ImpData> &d2);

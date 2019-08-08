@@ -24,13 +24,13 @@ BLASFLAGS =  -I /opt/OpenBLAS/include/ -L/opt/OpenBLAS/lib -lopenblas -lpthread
 #DFLAG += -D DEBUG_SAVE
 CXXFLAGS += -fopenmp
 
-all: train
+all: predict-and-filter
 
 
-train: train.cpp ffm.o
+predict-and-filter: predict-and-filter.cpp ffm.o
 	$(CXX) $(CXXFLAGS) -o $@ $^ $(BLASFLAGS)
 ffm.o: ffm.cpp ffm.h
 	$(CXX) $(CXXFLAGS) $(DFLAG) -c -o $@ $< $(BLASFLAGS)
 
 clean:
-	rm -f train predict ffm.o *.bin.*
+	rm -f predict-and-filter predict ffm.o *.bin.*
