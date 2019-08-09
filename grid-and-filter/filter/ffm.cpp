@@ -1331,10 +1331,16 @@ void ImpProblem::random_filter(const Vec& z, vector<pair<ImpLong, ImpDouble>>& i
 }
 
 void ImpProblem::propensious_filter(const Vec& z, vector<pair<ImpLong, ImpDouble>>& idx_list){
-   ImpDouble z_sum = 0;
-   for(auto i : z)
-       z_sum += i;
-   Vec probability_vec(z);
+   ImpDouble prob_sum = 0;
+   Vec probability_vec(z.size());
+   for(ImpLong i = 0; i < z.size(); i++){
+        if(z[i] > 0)
+            probability_vec[i] = 1.0 / (1.0 + exp(-z[i]));
+        else
+            probability_vec[i] = exp(z[i]) / (1.0 + exp(z[i]));
+   }
+   for(auto i : probability_vec)
+       prob_sum += i;
    random_device rd;
    mt19937 gen(rd());
    
@@ -1343,9 +1349,9 @@ void ImpProblem::propensious_filter(const Vec& z, vector<pair<ImpLong, ImpDouble
    while( t < max_t ){
        discrete_distribution<> dis(probability_vec.begin(), probability_vec.end());
        ImpLong idx = dis(gen);
+       idx_list.push_back( make_pair( idx, probability_vec[idx]/prob_sum ));
+       prob_sum -= probability_vec[idx];
        probability_vec[idx] = 0;
-       idx_list.push_back( make_pair( idx, z[idx]/z_sum ));
-       z_sum -= z[idx];
        t++;
    }
 }
@@ -1384,7 +1390,7 @@ void ImpProblem::filter_output(const ImpLong i, FILE* f_out, vector<pair<ImpLong
             if( idx == y->idx )
                 label = 1;
         }
-        fprintf(f_out, "%ld:%d:%lf,", idx, label, prob);
+        fprintf(f_out, "%ld:%d:%e,", idx, label, prob);
     }
     fprintf(f_out, "\n");
 }
@@ -1444,7 +1450,7 @@ void ImpProblem::filter() {
     FILE * f_pr = fopen("propensious_filter", "w" );
     FILE * f_de = fopen("determined_filter", "w" );
     for (ImpLong i = 0; i < Uva->m; i++) {
-        Vec z;
+        Vec z(bt.size(), at[i]);
         if(Uva->nnx[i] == 0) {
             z.assign(U->popular.begin(), U->popular.end());
         }
