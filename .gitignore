@@ -1,4 +1,17 @@
 # Data
-
 */data/*
+ob/further-modification/*.ffm
+grid-and-filter/add-pos-bias/*.pos.bias
+grid-and-filter/filter/*filter
+grid-and-filter/filter/*model
 
+# Binary
+*.o
+train
+predict-and-filter
+
+# Logs
+grid-and-filter/grid/logs/
+
+# Ctags
+*tags
