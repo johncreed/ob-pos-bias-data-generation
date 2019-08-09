@@ -6,8 +6,8 @@ c=5
 k=8
 others=''
 
-va='va.rd.ffm'
-tr='tr.rd.ffm'
+va='rd.va.ffm'
+tr='rd.tr.ffm'
 item='item.ffm'
 
 logs_path="logs/$tr.$va.$item.$t.$w.$r.$k"
