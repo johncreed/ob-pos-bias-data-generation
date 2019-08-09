@@ -1390,7 +1390,7 @@ void ImpProblem::filter_output(const ImpLong i, FILE* f_out, vector<pair<ImpLong
             if( idx == y->idx )
                 label = 1;
         }
-        fprintf(f_out, "%ld:%d:%e,", idx, label, prob);
+        fprintf(f_out, "%ld:%d:%lf,", idx, label, prob);
     }
     fprintf(f_out, "\n");
 }
