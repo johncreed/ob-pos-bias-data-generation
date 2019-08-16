@@ -1,5 +1,10 @@
 #! /usr/bin/python3
-PATH = 'ad_filter.csv'
+
+# Filter by click number
+#click_number=1000
+click_number=3000
+
+PATH = 'ad_filter_{}.csv'.format(click_number)
 import csv
 
 # Field 1, 2
@@ -33,7 +38,7 @@ def make_tuple(feat_list,field):
     fnc = lambda x: "{}:{}".format(int(field), x)
     return list(map(fnc, feat_str))
 
-item_svm = open('item.ffm', 'w')
+item_svm = open('item_{}.ffm'.format(click_number), 'w')
 for line in csv.DictReader(open(PATH), delimiter=','):
     # Key1
     feat_idx_list = []
