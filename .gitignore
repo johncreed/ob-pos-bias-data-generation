@@ -1,9 +1,12 @@
 # Data
 */data/*
-ob/further-modification/*.ffm
+*ffm
+*csv
 grid-and-filter/add-pos-bias/*.pos.bias
 grid-and-filter/filter/*filter
-grid-and-filter/filter/*model
+*.model
+*.tmp
+*.cvt
 
 # Binary
 *.o
@@ -15,3 +18,6 @@ grid-and-filter/grid/logs/
 
 # Ctags
 *tags
+
+# Vim swp files
+*.swp
