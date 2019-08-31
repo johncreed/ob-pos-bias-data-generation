@@ -117,7 +117,7 @@ choose_l_list(){
   done
 }
 
-r_train=(-9.3)
+r_train=(-8.1)
 
 task(){
   for w in ${w_train[@]} 
