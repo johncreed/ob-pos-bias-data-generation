@@ -58,6 +58,18 @@ def convert( item, context, item_dict, context_dict):
     rf.close()
     of.close()
 
+def output_map( item, context):
+    rf = open(context, 'r')
+    of = open(context.replace('ffm', 'map'), 'w')
+
+    for line in rf:
+        toks = line.strip().split()
+        labels = map( lambda x: x.split(':'), toks[0].strip(',').split(','))
+        for item_id, click in labels:
+            of.write("{} {}\n".format(click, item_id))
+
+    rf.close()
+    of.close()
 
 if __name__ == '__main__':
     item = sys.argv[1]
@@ -65,8 +77,9 @@ if __name__ == '__main__':
     print("item file: {} context files: [{}]".format(item, ','.join(context_lst)))
 
     print('Start build dictionary')
-    item_dict, context_dict = build_dict(item, context_lst)
+    #item_dict, context_dict = build_dict(item, context_lst)
     print('Start converting')
     for context in context_lst:
         print("Convert {}".format( context ) )
-        convert(item, context, item_dict, context_dict)
+        #convert(item, context, item_dict, context_dict)
+        output_map(item, context)
